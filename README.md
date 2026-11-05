@@ -10,7 +10,7 @@ This project analyzes commercial healthcare claims data to diagnose inpatient vs
 ## 📊 Executive Dashboard Preview
 Here is a snapshot of the Power BI dashboard built to visualize claim cost inflation and service-level utilization:
 
-![Dashboard Preview](dashboard/dashboard_preview.png)
+![Dashboard Preview](dashboard_preview.png)
 
 ## 🛠️ Tech Stack & Tools
 - **Database / Querying:** MySQL (Window functions, conditional aggregation, CTEs)
