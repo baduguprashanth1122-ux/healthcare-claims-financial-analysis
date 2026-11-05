@@ -1,0 +1,146 @@
+-- ====================================================================
+-- Project: Healthcare Claims Financial & Cost Driver Analysis
+-- Author: Solomon Prashanth Kumar Badugu
+-- Database: MySQL
+-- ====================================================================
+
+USE healthcare_analytics;
+
+-- --------------------------------------------------------------------
+-- STEP 1: Claim Type Cost Breakdown & Ranking
+-- Objective: Identify macro spend concentration and rank service lines.
+-- --------------------------------------------------------------------
+SELECT 
+    claim_type,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(AVG(paid_amount), 2)   AS avg_paid_per_claim,
+    ROUND(SUM(paid_amount) / SUM(billed_amount), 4) AS paid_ratio,
+    DENSE_RANK() OVER (ORDER BY SUM(paid_amount) DESC) AS rank_by_spend
+FROM claims
+GROUP BY claim_type
+ORDER BY total_paid DESC;
+
+
+-- --------------------------------------------------------------------
+-- STEP 2A: Top 10 CPT Procedure Codes by Total Spend
+-- Objective: Determine which procedures consume the highest overall spend.
+-- --------------------------------------------------------------------
+SELECT 
+    cpt_code,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(AVG(paid_amount), 2)   AS avg_paid_per_claim
+FROM claims
+GROUP BY cpt_code
+ORDER BY total_paid DESC
+LIMIT 10;
+
+
+-- --------------------------------------------------------------------
+-- STEP 2B: High-Severity Procedure Outliers (Unit Cost Check)
+-- Objective: Identify rare, catastrophic single-event procedures.
+-- --------------------------------------------------------------------
+SELECT 
+    cpt_code,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(AVG(paid_amount), 2)   AS avg_paid_per_claim
+FROM claims
+GROUP BY cpt_code
+ORDER BY avg_paid_per_claim DESC
+LIMIT 10;
+
+
+-- --------------------------------------------------------------------
+-- STEP 2C: Top 10 ICD Diagnosis Codes by Total Spend
+-- Objective: Identify underlying diseases and chronic conditions driving cost.
+-- --------------------------------------------------------------------
+SELECT 
+    icd_code,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(AVG(paid_amount), 2)   AS avg_paid_per_claim
+FROM claims
+GROUP BY icd_code
+ORDER BY total_paid DESC
+LIMIT 10;
+
+
+-- --------------------------------------------------------------------
+-- STEP 3A: Top 10 Highest-Cost Members (Pareto Analysis)
+-- Objective: Identify high-utilization/high-severity claimant concentration.
+-- --------------------------------------------------------------------
+SELECT 
+    member_id,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(AVG(paid_amount), 2)   AS avg_paid_per_claim
+FROM claims
+GROUP BY member_id
+ORDER BY total_paid DESC
+LIMIT 10;
+
+
+-- --------------------------------------------------------------------
+-- STEP 3B: Member Spend Decomposition by Claim Type (Conditional Aggregation)
+-- Objective: Pivot claim types into columns to pinpoint individual cost drivers.
+-- --------------------------------------------------------------------
+SELECT 
+    member_id,
+    ROUND(SUM(CASE WHEN claim_type = 'Inpatient'  THEN paid_amount ELSE 0 END), 2) AS inpatient_paid,
+    ROUND(SUM(CASE WHEN claim_type = 'Emergency'  THEN paid_amount ELSE 0 END), 2) AS emergency_paid,
+    ROUND(SUM(CASE WHEN claim_type = 'Outpatient' THEN paid_amount ELSE 0 END), 2) AS outpatient_paid,
+    ROUND(SUM(CASE WHEN claim_type = 'Lab'        THEN paid_amount ELSE 0 END), 2) AS lab_paid,
+    ROUND(SUM(CASE WHEN claim_type = 'Pharmacy'   THEN paid_amount ELSE 0 END), 2) AS pharmacy_paid,
+    ROUND(SUM(paid_amount), 2) AS total_paid
+FROM claims
+GROUP BY member_id
+ORDER BY total_paid DESC
+LIMIT 10;
+
+
+-- --------------------------------------------------------------------
+-- STEP 4: Billed vs. Paid Reimbursement Ratio Analysis
+-- Objective: Evaluate contractual discount strength across dimensions.
+-- --------------------------------------------------------------------
+
+-- 4A. By Claim Type
+SELECT 
+    claim_type,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(SUM(paid_amount) / SUM(billed_amount), 4) AS paid_ratio
+FROM claims
+GROUP BY claim_type
+ORDER BY paid_ratio ASC;
+
+-- 4B. By Provider (Filtered for minimum volume to eliminate one-off noise)
+SELECT 
+    provider_id,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(SUM(paid_amount) / SUM(billed_amount), 4) AS paid_ratio
+FROM claims
+GROUP BY provider_id
+HAVING COUNT(*) >= 2
+ORDER BY paid_ratio ASC;
+
+-- 4C. By CPT Code (Filtered for recurring procedures)
+SELECT 
+    cpt_code,
+    ROUND(SUM(billed_amount), 2) AS total_billed,
+    ROUND(SUM(paid_amount), 2)   AS total_paid,
+    COUNT(*)                     AS no_of_claims,
+    ROUND(SUM(paid_amount) / SUM(billed_amount), 4) AS paid_ratio
+FROM claims
+GROUP BY cpt_code
+HAVING COUNT(*) >= 3
+ORDER BY paid_ratio ASC;
